@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login & Data Mahasiswa</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #74ebd5, #9face6);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    h1, h2 {
+      color: #333;
+      text-align: center;
+    }
+
+    .form-container {
+      margin-bottom: 20px;
+    }
+
+    .form-container input {
+      padding: 8px;
+      margin: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .form-container button {
+      padding: 8px 15px;
+      background-color: #3498db;
+      border: none;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .form-container button:hover {
+      background-color: #2980b9;
+    }
+
+    table {
+      width: 100%;
+      max-width: 900px;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th, td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
+    button.edit {
+      background-color: #f39c12;
+      color: white;
+    }
+
+    button.delete {
+      background-color: #e74c3c;
+      color: white;
+    }
+
+    #mainApp {
+      width: 90%;
+      max-width: 1000px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- halaman login -->
+  <div id="loginPage">
+    <h2>Login</h2>
+    <input type="text" id="usernameInput" placeholder="Username"><br><br>
+    <input type="password" id="passwordInput" placeholder="Password"><br><br>
+    <button onclick="checkLogin()">Login</button>
+  </div>
+
+  <!-- aplikasi utama -->
+  <div id="mainApp" style="display: none;">
+    <h1>Data Mahasiswa</h1>
+
+    <div class="form-container">
+      <input type="text" id="name" placeholder="Nama">
+      <input type="text" id="age" placeholder="Umur">
+      <input type="text" id="address" placeholder="Alamat">
+      <input type="text" id="nim" placeholder="NIM">
+      <button id="submitBtn" onclick="addOrUpdateRow()">Tambahkan</button>
+    </div>
+
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>Nama</th>
+          <th>Umur</th>
+          <th>Alamat</th>
+          <th>NIM</th>
+          <th colspan="2">E&H</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data akan di-render di sini -->
+      </tbody>
+    </table>
+  </div>
+
+<script>
+  const API_URL = 'http://localhost:4004/mahasiswa';
+  let editNim = null;
+
+  function checkLogin() {
+    const username = document.getElementById('usernameInput').value.trim();
+    const password = document.getElementById('passwordInput').value.trim();
+    const users = [{ username: 'ican', password: 'ican123' }];
+
+    const found = users.find(u => u.username === username && u.password === password);
+
+    if (found) {
+      document.getElementById('loginPage').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'block';
+      renderTable();
+    } else {
+      alert('Username atau Password salah!');
+    }
+  }
+
+  async function renderTable() {
+    const tbody = document.querySelector('#dataTable tbody');
+    tbody.innerHTML = '';
+
+    try {
+      const res = await fetch(API_URL);
+      const result = await res.json();
+      const mahasiswa = result[0].payLoad;
+
+      mahasiswa.forEach((mhs, index) => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${mhs.Nama}</td>
+          <td>${mhs.Umur}</td>
+          <td>${mhs.Alamat}</td>
+          <td>${mhs.NIM}</td>
+          <td><button class="edit" onclick="editRow('${mhs.NIM}')">Edit</button></td>
+          <td><button class="delete" onclick="deleteRow('${mhs.NIM}')">Hapus</button></td>
+        `;
+      });
+
+    } catch (err) {
+      console.error("Gagal mengambil data mahasiswa:", err);
+      alert("Gagal memuat data mahasiswa dari server.");
+    }
+  }
+
+  async function addOrUpdateRow() {
+    const nama = document.getElementById('name').value.trim();
+    const umur = parseInt(document.getElementById('age').value.trim());
+    const alamat = document.getElementById('address').value.trim();
+    const nim = document.getElementById('nim').value.trim();
+
+    if (!nama || !umur || !alamat || !nim) {
+      alert('Harap isi semua kolom!');
+      return;
+    }
+
+    let payload = { nama, umur, alamat, nim };
+
+    try {
+      if (editNim === null) {
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        payload.nim = editNim;
+        await fetch(API_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        editNim = null;
+        document.getElementById('submitBtn').innerText = 'Tambahkan';
+        document.getElementById('nim').disabled = false;
+      }
+
+      resetForm();
+      renderTable();
+    } catch (err) {
+      alert('Gagal menyimpan data.');
+      console.error(err);
+    }
+  }
+
+  async function editRow(nim) {
+    const res = await fetch(`${API_URL}/${nim}`);
+    const result = await res.json();
+    const mhs = result[0].payLoad[0];
+
+    document.getElementById('name').value = mhs.Nama;
+    document.getElementById('age').value = mhs.Umur;
+    document.getElementById('address').value = mhs.Alamat;
+    document.getElementById('nim').value = mhs.NIM;
+
+    editNim = mhs.NIM;
+    document.getElementById('nim').disabled = true;
+    document.getElementById('submitBtn').innerText = 'Update';
+  }
+
+  async function deleteRow(nim) {
+    if (confirm('Yakin ingin menghapus data ini?')) {
+      await fetch(API_URL, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nim })
+      });
+
+      renderTable();
+    }
+  }
+
+  function resetForm() {
+    document.getElementById('name').value = '';
+    document.getElementById('age').value = '';
+    document.getElementById('address').value = '';
+    document.getElementById('nim').value = '';
+    document.getElementById('nim').disabled = false;
+    editNim = null;
+    document.getElementById('submitBtn').innerText = 'Tambahkan';
+  }
+</script>
+
+</body>
+</html>
